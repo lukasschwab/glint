@@ -3,6 +3,7 @@ package cache
 import (
 	"fmt"
 	"go/types"
+	"sync"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/packages"
@@ -21,6 +22,18 @@ var (
 	packagesCfg = &packages.Config{
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedDeps,
 	}
+
+	inner = sync.OnceValue(func() *golangci.Cache {
+		log := logutils.NewStderrLog("skip")
+		sw := timeutils.NewStopwatch("pkgcache", log.Child(logutils.DebugKeyStopwatch))
+		if c, err := golangci.NewCache(sw, log); err != nil {
+			panic(err)
+		} else {
+			return c
+		}
+	})
+
+	loaded = map[string]*packages.Package{}
 )
 
 type cache struct {
@@ -31,16 +44,9 @@ type cache struct {
 
 func New(analyzer *analysis.Analyzer, logger Logger) cache {
 	result := cache{
+		inner:  inner(),
 		key:    "lint/result:" + analyzer.Name,
 		logger: logger,
-	}
-	{
-		var err error
-		log := logutils.NewStderrLog("skip")
-		sw := timeutils.NewStopwatch("pkgcache", log.Child(logutils.DebugKeyStopwatch))
-		if result.inner, err = golangci.NewCache(sw, log); err != nil {
-			panic(err)
-		}
 	}
 	return result
 }
@@ -79,9 +85,9 @@ func (c cache) Write(pass *analysis.Pass, diagnostics []analysis.Diagnostic, err
 }
 
 // FIXME: unsafe error handling.
-// TODO: cache these results in memory?
-// FIXME: I think golangci-lint just does this by constructing a struct? gosec.go
 func (c cache) loadPackage(pkg *types.Package) *packages.Package {
+	println("Loading ", pkg.Path())
+
 	packages, err := packages.Load(packagesCfg, pkg.Path())
 	if err != nil {
 		c.logger.Logf("error loading package '%v': %v", pkg.Path(), err)
