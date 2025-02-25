@@ -2,13 +2,15 @@ package main
 
 import (
 	"github.com/lukasschwab/glint"
+	"github.com/lukasschwab/glint/pkg/cache"
 	"github.com/lukasschwab/glint/pkg/golangci"
 
 	nilinterface "github.com/lukasschwab/nilinterface/pkg/analyzer"
 )
 
 func main() {
-	glint.Main(append(
+	// TODO: parameterize some of these?
+	glint.Main(cache.LogLogger{}, false, append(
 		golangci.DefaultAnalyzers(),
 		nilinterface.Analyzer,
 	)...)
