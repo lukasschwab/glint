@@ -9,11 +9,6 @@
 // appeared. It also provides the import graph of std packages.
 package stdlib
 
-import (
-	"fmt"
-	"strings"
-)
-
 type Symbol struct {
 	Name    string
 	Kind    Kind
@@ -34,64 +29,7 @@ const (
 	Method              // "(*Buffer).Grow"
 )
 
-func (kind Kind) String() string {
-	return [...]string{
-		Invalid: "invalid",
-		Type:    "type",
-		Func:    "func",
-		Var:     "var",
-		Const:   "const",
-		Field:   "field",
-		Method:  "method",
-	}[kind]
-}
-
 // A Version represents a version of Go of the form "go1.%d".
 type Version int8
 
-// String returns a version string of the form "go1.23", without allocating.
-func (v Version) String() string { return versions[v] }
-
 var versions [30]string // (increase constant as needed)
-
-func init() {
-	for i := range versions {
-		versions[i] = fmt.Sprintf("go1.%d", i)
-	}
-}
-
-// HasPackage reports whether the specified package path is part of
-// the standard library's public API.
-func HasPackage(path string) bool {
-	_, ok := PackageSymbols[path]
-	return ok
-}
-
-// SplitField splits the field symbol name into type and field
-// components. It must be called only on Field symbols.
-//
-// Example: "File.Package" -> ("File", "Package")
-func (sym *Symbol) SplitField() (typename, name string) {
-	if sym.Kind != Field {
-		panic("not a field")
-	}
-	typename, name, _ = strings.Cut(sym.Name, ".")
-	return
-}
-
-// SplitMethod splits the method symbol name into pointer, receiver,
-// and method components. It must be called only on Method symbols.
-//
-// Example: "(*Buffer).Grow" -> (true, "Buffer", "Grow")
-func (sym *Symbol) SplitMethod() (ptr bool, recv, name string) {
-	if sym.Kind != Method {
-		panic("not a method")
-	}
-	recv, name, _ = strings.Cut(sym.Name, ".")
-	recv = recv[len("(") : len(recv)-len(")")]
-	ptr = recv[0] == '*'
-	if ptr {
-		recv = recv[len("*"):]
-	}
-	return
-}

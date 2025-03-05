@@ -83,21 +83,6 @@ const (
 	opEqual
 )
 
-// String returns a human readable representation of an OpKind. It is not
-// intended for machine processing.
-func (k opKind) String() string {
-	switch k {
-	case opDelete:
-		return "delete"
-	case opInsert:
-		return "insert"
-	case opEqual:
-		return "equal"
-	default:
-		panic("unknown operation kind")
-	}
-}
-
 // toUnified takes a file contents and a sequence of edits, and calculates
 // a unified diff that represents those edits.
 func toUnified(fromName, toName string, content string, edits []Edit, contextLines int) (unified, error) {

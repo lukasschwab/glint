@@ -5,7 +5,6 @@
 package diff
 
 import (
-	"bytes"
 	"unicode/utf8"
 
 	"github.com/lukasschwab/glint/internal/tools/diff/lcs"
@@ -23,19 +22,6 @@ func Strings(before, after string) []Edit {
 		return diffASCII([]byte(before), []byte(after))
 	}
 	return diffRunes([]rune(before), []rune(after))
-}
-
-// Bytes computes the differences between two byte slices.
-// The resulting edits respect rune boundaries.
-func Bytes(before, after []byte) []Edit {
-	if bytes.Equal(before, after) {
-		return nil // common case
-	}
-
-	if isASCII(before) && isASCII(after) {
-		return diffASCII(before, after)
-	}
-	return diffRunes(runes(before), runes(after))
 }
 
 func diffASCII(before, after []byte) []Edit {
@@ -66,18 +52,6 @@ func diffRunes(before, after []rune) []Edit {
 		lastEnd = d.End
 	}
 	return res
-}
-
-// runes is like []rune(string(bytes)) without the duplicate allocation.
-func runes(bytes []byte) []rune {
-	n := utf8.RuneCount(bytes)
-	runes := make([]rune, n)
-	for i := 0; i < n; i++ {
-		r, sz := utf8.DecodeRune(bytes)
-		bytes = bytes[sz:]
-		runes[i] = r
-	}
-	return runes
 }
 
 // runesLen returns the length in bytes of the UTF-8 encoding of runes.
