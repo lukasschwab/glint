@@ -1,3 +1,5 @@
+// TODO: Indicate provenance
+//
 // Copyright 2018 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
@@ -9,7 +11,7 @@
 //
 // (Note: it is not used by the public 'checker' package, since the
 // latter provides a set of pure functions for use as building blocks.)
-package checker
+package checkrunner
 
 // TODO(adonovan): publish the JSON schema in go/analysis or analysisjson.
 
@@ -29,13 +31,14 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/tools/go/analysis"
+	"golang.org/x/tools/go/analysis/checker"
+	"golang.org/x/tools/go/packages"
+
 	"github.com/lukasschwab/glint/internal/tools/analysisinternal"
 	"github.com/lukasschwab/glint/internal/tools/diff"
 	internal "github.com/lukasschwab/glint/internal/tools/go/analysis"
 	"github.com/lukasschwab/glint/internal/tools/go/analysis/analysisflags"
-	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/checker"
-	"golang.org/x/tools/go/packages"
 )
 
 var (
@@ -78,6 +81,8 @@ func RegisterFlags() {
 	flag.BoolVar(&Fix, "fix", false, "apply all suggested fixes")
 	flag.BoolVar(&Diff, "diff", false, "with -fix, don't update the files, but print a unified diff")
 }
+
+type analysisRunner func(opts *checker.Options) (*checker.Graph, error)
 
 // Run loads the packages specified by args using go/packages,
 // then applies the specified analyzers to them.
@@ -574,26 +579,6 @@ fixloop:
 	}
 
 	return nil
-}
-
-// needFacts reports whether any analysis required by the specified set
-// needs facts.  If so, we must load the entire program from source.
-func needFacts(analyzers []*analysis.Analyzer) bool {
-	seen := make(map[*analysis.Analyzer]bool)
-	var q []*analysis.Analyzer // for BFS
-	q = append(q, analyzers...)
-	for len(q) > 0 {
-		a := q[0]
-		q = q[1:]
-		if !seen[a] {
-			seen[a] = true
-			if len(a.FactTypes) > 0 {
-				return true
-			}
-			q = append(q, a.Requires...)
-		}
-	}
-	return false
 }
 
 func dbg(b byte) bool { return strings.IndexByte(Debug, b) >= 0 }

@@ -7,8 +7,8 @@ package typesinternal
 import (
 	"go/types"
 
-	"github.com/lukasschwab/glint/internal/tools/internal/stdlib"
-	"github.com/lukasschwab/glint/internal/tools/internal/versions"
+	"github.com/lukasschwab/glint/internal/tools/stdlib"
+	"github.com/lukasschwab/glint/internal/tools/versions"
 )
 
 // TooNewStdSymbols computes the set of package-level symbols

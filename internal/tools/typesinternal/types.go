@@ -12,7 +12,7 @@ import (
 	"reflect"
 	"unsafe"
 
-	"github.com/lukasschwab/glint/internal/tools/internal/aliases"
+	"github.com/lukasschwab/glint/internal/tools/aliases"
 )
 
 func SetUsesCgo(conf *types.Config) bool {

@@ -8,7 +8,7 @@ import (
 	"bytes"
 	"unicode/utf8"
 
-	"github.com/lukasschwab/glint/internal/tools/internal/diff/lcs"
+	"github.com/lukasschwab/glint/internal/tools/diff/lcs"
 )
 
 // Strings computes the differences between two strings.

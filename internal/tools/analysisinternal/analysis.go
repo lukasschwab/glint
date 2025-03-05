@@ -19,7 +19,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/lukasschwab/glint/internal/tools/internal/typesinternal"
+	"github.com/lukasschwab/glint/internal/tools/typesinternal"
 	"golang.org/x/tools/go/analysis"
 )
 
