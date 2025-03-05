@@ -5,7 +5,6 @@ import (
 
 	"github.com/lukasschwab/glint"
 	"github.com/lukasschwab/glint/pkg/golangci"
-
 	nilinterface "github.com/lukasschwab/nilinterface/pkg/analyzer"
 )
 

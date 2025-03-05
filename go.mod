@@ -6,7 +6,7 @@ toolchain go1.23.5
 
 require (
 	github.com/gordonklaus/ineffassign v0.1.0
-	github.com/lukasschwab/nilinterface v0.0.6
+	github.com/lukasschwab/nilinterface v0.0.8
 	golang.org/x/tools v0.30.0
 )
 
