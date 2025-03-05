@@ -33,11 +33,10 @@ import (
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/checker"
-	"golang.org/x/tools/go/packages"
 
 	"github.com/lukasschwab/glint/internal/tools/analysisinternal"
 	"github.com/lukasschwab/glint/internal/tools/diff"
-	internal "github.com/lukasschwab/glint/internal/tools/go/analysis"
+	ianalysis "github.com/lukasschwab/glint/internal/tools/go/analysis"
 	"github.com/lukasschwab/glint/internal/tools/go/analysis/analysisflags"
 )
 
@@ -299,31 +298,6 @@ func printDiagnostics(graph *checker.Graph) (exitcode int) {
 	return exitcode
 }
 
-// load loads the initial packages. Returns only top-level loading
-// errors. Does not consider errors in packages.
-func load(patterns []string, allSyntax bool) ([]*packages.Package, error) {
-	mode := packages.LoadSyntax
-	if allSyntax {
-		mode = packages.LoadAllSyntax
-	}
-	mode |= packages.NeedModule
-	conf := packages.Config{
-		Mode: mode,
-		// Ensure that child process inherits correct alias of PWD.
-		// (See discussion at Dir field of [exec.Command].)
-		// However, this currently breaks some tests.
-		// TODO(adonovan): Investigate.
-		//
-		// Dir:   os.Getenv("PWD"),
-		Tests: IncludeTests,
-	}
-	initial, err := packages.Load(&conf, patterns...)
-	if err == nil && len(initial) == 0 {
-		err = fmt.Errorf("%s matched no packages", strings.Join(patterns, " "))
-	}
-	return initial, err
-}
-
 // applyFixes attempts to apply the first suggested fix associated
 // with each diagnostic reported by the specified actions.
 // All fixes must have been validated by [analysisinternal.ValidateFixes].
@@ -433,7 +407,7 @@ func applyFixes(actions []*checker.Action, showDiff bool) error {
 	goodFixes := 0
 fixloop:
 	for _, fixact := range fixes {
-		readFile := internal.Pass(fixact.act).ReadFile
+		readFile := ianalysis.Pass(fixact.act).ReadFile
 
 		// Convert analysis.TextEdits to diff.Edits, grouped by file.
 		// Precondition: a prior call to validateFix succeeded.
