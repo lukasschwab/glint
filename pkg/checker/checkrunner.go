@@ -81,7 +81,7 @@ func RegisterFlags() {
 	flag.BoolVar(&Diff, "diff", false, "with -fix, don't update the files, but print a unified diff")
 }
 
-type analysisRunner func(opts *checker.Options) (*checker.Graph, error)
+type Runnable func(opts *checker.Options) (*checker.Graph, error)
 
 // Run loads the packages specified by args using go/packages,
 // then applies the specified analyzers to them.
@@ -96,7 +96,7 @@ type analysisRunner func(opts *checker.Options) (*checker.Graph, error)
 // to parallelism. Instead, use unit tests of the actual units (e.g.
 // checker.Analyze) and integration tests (e.g. TestScript) of whole
 // executables.
-func Run(args []string, runner analysisRunner) (exitcode int) {
+func Run(args []string, runner Runnable) (exitcode int) {
 	// Instead of returning a code directly,
 	// call this function to monotonically increase the exit code.
 	// This allows us to keep going in the face of some errors

@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	glint.Main(LogLogger{}, false, append(
+	glint.Main(LogLogger{}, append(
 		golangci.DefaultAnalyzers(),
 		nilinterface.Analyzer,
 	)...)
