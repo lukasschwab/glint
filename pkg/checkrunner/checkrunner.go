@@ -1,5 +1,3 @@
-// TODO: Indicate provenance
-//
 // Copyright 2018 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
@@ -32,7 +30,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/checker"
 
-	"github.com/lukasschwab/glint/internal/tools/diff" // ❌ github.com/rogpeppe/go-internal/diff
+	"github.com/lukasschwab/glint/internal/tools/diff"
 	ianalysis "github.com/lukasschwab/glint/internal/tools/go/analysis"
 	"github.com/lukasschwab/glint/internal/tools/go/analysis/analysisflags"
 )

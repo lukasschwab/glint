@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/lukasschwab/glint/internal/tools/go/analysis/analysisflags"
-	checkrunner "github.com/lukasschwab/glint/pkg/checker"
+	"github.com/lukasschwab/glint/pkg/checkrunner"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/checker"
 	"golang.org/x/tools/go/analysis/unitchecker"
