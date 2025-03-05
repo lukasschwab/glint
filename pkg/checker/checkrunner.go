@@ -13,8 +13,6 @@
 // latter provides a set of pure functions for use as building blocks.)
 package checkrunner
 
-// TODO(adonovan): publish the JSON schema in go/analysis or analysisjson.
-
 import (
 	"flag"
 	"fmt"
@@ -34,8 +32,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/checker"
 
-	"github.com/lukasschwab/glint/internal/tools/analysisinternal"
-	"github.com/lukasschwab/glint/internal/tools/diff"
+	"github.com/lukasschwab/glint/internal/tools/diff" // ❌ github.com/rogpeppe/go-internal/diff
 	ianalysis "github.com/lukasschwab/glint/internal/tools/go/analysis"
 	"github.com/lukasschwab/glint/internal/tools/go/analysis/analysisflags"
 )
@@ -388,7 +385,7 @@ func applyFixes(actions []*checker.Action, showDiff bool) error {
 	// packages are not disjoint, due to test variants, so this
 	// would not really address the issue.)
 	baselineContent := make(map[string][]byte)
-	getBaseline := func(readFile analysisinternal.ReadFileFunc, filename string) ([]byte, error) {
+	getBaseline := func(readFile readFileFunc, filename string) ([]byte, error) {
 		content, ok := baselineContent[filename]
 		if !ok {
 			var err error
@@ -556,3 +553,9 @@ fixloop:
 }
 
 func dbg(b byte) bool { return strings.IndexByte(Debug, b) >= 0 }
+
+// A readFileFunc is a function that returns the
+// contents of a file, such as [os.ReadFile].
+//
+// NOTE: From analysisinternal.readFileFunc.
+type readFileFunc = func(filename string) ([]byte, error)
