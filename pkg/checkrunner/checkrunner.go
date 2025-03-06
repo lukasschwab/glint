@@ -286,7 +286,7 @@ func printDiagnostics(graph *checker.Graph, sink io.Writer) (exitcode int) {
 			}
 		}
 		if total > sum {
-			fmt.Fprintf(sink, "%s\tall others\n", total-sum)
+			_, _ = fmt.Fprintf(sink, "%s\tall others\n", total-sum)
 		}
 	}
 
