@@ -91,7 +91,7 @@ type Runnable func(opts *checker.Options) (*checker.Graph, error)
 // to parallelism. Instead, use unit tests of the actual units (e.g.
 // checker.Analyze) and integration tests (e.g. TestScript) of whole
 // executables.
-func Run(args []string, runner Runnable) (exitcode int) {
+func Run(args []string, runner Runnable, sink io.Writer) (exitcode int) {
 	// Instead of returning a code directly,
 	// call this function to monotonically increase the exit code.
 	// This allows us to keep going in the face of some errors
@@ -182,7 +182,7 @@ func Run(args []string, runner Runnable) (exitcode int) {
 
 	var factLog io.Writer
 	if dbg('f') {
-		factLog = os.Stderr
+		factLog = sink
 	}
 
 	// Run the analysis.
@@ -221,14 +221,14 @@ func Run(args []string, runner Runnable) (exitcode int) {
 	// are errors in the packages, this will have 0 exit
 	// code. Otherwise, we prefer to return exit code
 	// indicating diagnostics.
-	exitAtLeast(printDiagnostics(graph))
+	exitAtLeast(printDiagnostics(graph, sink))
 
 	return
 }
 
 // printDiagnostics prints diagnostics in text or JSON form
 // and returns the appropriate exit code.
-func printDiagnostics(graph *checker.Graph) (exitcode int) {
+func printDiagnostics(graph *checker.Graph, sink io.Writer) (exitcode int) {
 	// Print the results.
 	// With -json, the exit code is always zero.
 	if analysisflags.JSON {
@@ -236,7 +236,7 @@ func printDiagnostics(graph *checker.Graph) (exitcode int) {
 			return 1
 		}
 	} else {
-		if err := graph.PrintText(os.Stderr, analysisflags.Context); err != nil {
+		if err := graph.PrintText(sink, analysisflags.Context); err != nil {
 			return 1
 		}
 
@@ -279,14 +279,14 @@ func printDiagnostics(graph *checker.Graph) (exitcode int) {
 		})
 		var sum time.Duration
 		for _, act := range list {
-			fmt.Fprintf(os.Stderr, "%s\t%s\n", act.Duration, act)
+			fmt.Fprintf(sink, "%s\t%s\n", act.Duration, act)
 			sum += act.Duration
 			if sum >= total*9/10 {
 				break
 			}
 		}
 		if total > sum {
-			fmt.Fprintf(os.Stderr, "%s\tall others\n", total-sum)
+			fmt.Fprintf(sink, "%s\tall others\n", total-sum)
 		}
 	}
 
