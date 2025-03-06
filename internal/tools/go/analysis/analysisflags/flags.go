@@ -180,7 +180,7 @@ func printFlags() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	os.Stdout.Write(data)
+	_, _ = os.Stdout.Write(data)
 }
 
 // addVersionFlag registers a -V flag that, if set,
@@ -227,7 +227,7 @@ func (versionFlag) Set(s string) error {
 	if _, err := io.Copy(h, f); err != nil {
 		log.Fatal(err)
 	}
-	f.Close()
+	_ = f.Close()
 	fmt.Printf("%s version devel comments-go-here buildID=%02x\n",
 		progname, string(h.Sum(nil)))
 	os.Exit(0)

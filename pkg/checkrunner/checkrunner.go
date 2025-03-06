@@ -153,7 +153,7 @@ func Run(args []string, runner Runnable, sink io.Writer) (exitcode int) {
 			if err := pprof.WriteHeapProfile(f); err != nil {
 				log.Fatalf("Writing memory profile: %v", err)
 			}
-			f.Close()
+			_ = f.Close()
 		}()
 	}
 
@@ -279,14 +279,14 @@ func printDiagnostics(graph *checker.Graph, sink io.Writer) (exitcode int) {
 		})
 		var sum time.Duration
 		for _, act := range list {
-			fmt.Fprintf(sink, "%s\t%s\n", act.Duration, act)
+			_, _ = fmt.Fprintf(sink, "%s\t%s\n", act.Duration, act)
 			sum += act.Duration
 			if sum >= total*9/10 {
 				break
 			}
 		}
 		if total > sum {
-			fmt.Fprintf(sink, "%s\tall others\n", total-sum)
+			_, _ = fmt.Fprintf(sink, "%s\tall others\n", total-sum)
 		}
 	}
 
@@ -489,7 +489,7 @@ fixloop:
 			// Since we formatted the file, we need to recompute the diff.
 			unified := diff.Unified(file+" (old)", file+" (new)", string(baseline), string(final))
 			// TODO(adonovan): abstract the I/O.
-			os.Stdout.WriteString(unified)
+			_, _ = os.Stdout.WriteString(unified)
 
 		} else {
 			// write
