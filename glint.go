@@ -9,6 +9,7 @@ import (
 
 	"github.com/lukasschwab/glint/internal/tools/go/analysis/analysisflags"
 	"github.com/lukasschwab/glint/pkg/checkrunner"
+	"github.com/lukasschwab/glint/pkg/nolint"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/checker"
 	"golang.org/x/tools/go/packages"
@@ -16,7 +17,7 @@ import (
 
 var (
 	// Should control file set and destination.
-	IsAlternateTool = false
+	UseStdout = false
 )
 
 type Logger interface {
@@ -29,30 +30,30 @@ func Main(analyzers ...*analysis.Analyzer) {
 	log.SetFlags(0)
 	log.SetPrefix(progname + ": ")
 
+	for _, a := range analyzers {
+		nolint.Wrap(a)
+	}
+
 	if err := analysis.Validate(analyzers); err != nil {
 		log.Fatal(err)
 	}
 
 	checkrunner.RegisterFlags()
-	flag.BoolVar(&IsAlternateTool, "alternateTool", false, "behave as staticcheck go.alternateTool for VS Code (default false)")
+	flag.BoolVar(&UseStdout, "stdout", false, "write linter findings to stdout instead of stderr (default false)")
 
 	// NOTE: could use this to list and filter analyzers.
 	analysisflags.Parse([]*analysis.Analyzer{}, true)
 
 	args := flag.Args()
 	if len(args) == 0 {
-		if IsAlternateTool {
-			args = append(args, "./...")
-		} else {
-			fmt.Fprintf(os.Stderr, `%[1]s is a tool for static analysis of Go programs.
+		fmt.Fprintf(os.Stderr, `%[1]s is a tool for static analysis of Go programs.
 
 Usage: %[1]s [-flag] [package]
 
 Run '%[1]s help' for more detail,
  or '%[1]s help name' for details and flags of a specific analyzer.
 `, progname)
-			os.Exit(1)
-		}
+		os.Exit(1)
 	}
 
 	if args[0] == "help" {
@@ -63,7 +64,7 @@ Run '%[1]s help' for more detail,
 	runnable := buildRunner(args, analyzers...)
 
 	sink := os.Stderr
-	if IsAlternateTool {
+	if UseStdout {
 		sink = os.Stdout
 	}
 

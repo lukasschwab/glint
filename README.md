@@ -4,26 +4,42 @@ Experimental Go-defined metalinter.
 
 ## Prospectus
 
-- [ ] `nolint` directives
 - [x] VS Code integration
-- [ ] GitHub Action example
+- [x] GitHub Action example
+    - [ ] Action using a version in a separate repo
+- [x] `nolint` directives
+- [ ] Clear demo of `-fix` working
 - [ ] Deep-dive the lint scope: compare result sets on go-fiber.
 
-### VS Code integration
+### `nolint` directives
 
-VS Code's [`vscode-go` extension](https://github.com/golang/vscode-go) only supports three lint tools: `golangci-lint`, `revive`, and `staticcheck`. You can use a built `glint` binary instead by specifying it as an *alternate tool* for `staticcheck` in your VS Code settings:
+`nolint` directives are blunt instruments for `glint`: adding `//nolint:analyzername` to a file *completely removes* that file from that anlyzer's run. There's no per-line or per-block `nolint`ing here.
+
+You shouldn't be using them anyway.
+
+For example, exempt a file from `nilinterface` linting:
+
+```go
+//nolint:nilinterface
+package main
+
+// ...
+```
+
+### `vscode-go`
+
+VS Code's [`vscode-go` extension](https://github.com/golang/vscode-go) only explicitly supports three lint tools: `golangci-lint`, `revive`, and `staticcheck`. 
+
+You can use a built `glint` binary instead like so:
 
 ```json
 {
-    "go.lintTool": "staticcheck",
-    "go.alternateTools": {
-        "staticcheck": "/Your/path/to/glint",
-    },
+    "go.lintTool": "glint",
     "go.lintFlags": ["-alternateTool"]
 }
 ```
 
-You *must* provide the `-alternateTool` lint flag; this redirects the linter output to `stdout` and injects the `./...` wildcard package selector.
+You need the `glint` binary available on your path, e.g. by running `go install ./cmd/glint` in this repo. VS Code may warn you your custom glint-based linter is unsupported. Who cares what they think?
 
 If you open the Go VS Code output, saving a file should trigger a `glint` run and print the findings. For example:
 
