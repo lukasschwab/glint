@@ -51,12 +51,12 @@ package main
 
 VS Code's [`vscode-go` extension](https://github.com/golang/vscode-go) only explicitly supports three lint tools: `golangci-lint`, `revive`, and `staticcheck`. 
 
-You can use a built `glint` binary instead like so:
+You can use a built `glint` binary instead:
 
 ```json
 {
     "go.lintTool": "glint",
-    "go.lintFlags": ["-alternateTool"]
+    "go.lintFlags": ["-stdout", "./..."]
 }
 ```
 
