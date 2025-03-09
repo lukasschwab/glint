@@ -6,7 +6,5 @@ import (
 )
 
 func main() {
-	glint.Main(append(
-		golangci.DefaultAnalyzers(),
-	)...)
+	glint.Main(golangci.DefaultAnalyzers()...)
 }

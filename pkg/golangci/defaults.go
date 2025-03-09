@@ -48,7 +48,13 @@ import (
 // DefaultAnalyzers run by golangci-lint when no config is provided; see
 // https://golangci-lint.run/usage/linters/#enabled-by-default
 func DefaultAnalyzers() (result []*analysis.Analyzer) {
+	// TODO: this apparently isn't excluding the default set of identifiers;
+	// golangci-lint does by default.
+	//
+	// - Identifiers: https://github.com/kisielk/errcheck/blob/master/errcheck/excludes.go
+	// - See differences against go-fiber.
 	result = append(result, errcheck.Analyzer)
+
 	result = append(result, extractHonnefAnalyzers(gosimple.Analyzers)...)
 	result = append(result, DefaultVetAnalyzers...)
 	result = append(result, ineffassign.Analyzer)
