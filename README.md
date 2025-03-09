@@ -8,8 +8,29 @@ Experimental Go-defined metalinter.
 - [x] GitHub Action example
     - [ ] Action using a version in a separate repo
 - [x] `nolint` directives
-- [ ] Clear demo of `-fix` working
+- [x] Clear demo of `-fix` working
 - [ ] Deep-dive the lint scope: compare result sets on go-fiber.
+
+### `-fix`
+
+`glint` can apply analyzer-produced autofixes.
+
+```console
+$ go run ./cmd/glint -fix -diff ./pkg/nolint/testdata # Show changes
+--- ./pkg/nolint/testdata/c.go (old)
++++ ./pkg/nolint/testdata/c.go (new)
+@@ -5,8 +5,7 @@
+ // Should trigger some gosimple fix.
+ func example() {
+        // Simplifiable code
+-       var x int
+-       x = 0
++       var x int = 0
+        fmt.Println(x)
+ 
+        // Simplifiable loop
+$ go run ./cmd/glint -fix ./pkg/nolint/testdata # Apply changes
+```
 
 ### `nolint` directives
 

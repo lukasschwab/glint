@@ -31,7 +31,6 @@ import (
 	"golang.org/x/tools/go/analysis/checker"
 
 	"github.com/lukasschwab/glint/internal/tools/diff"
-	ianalysis "github.com/lukasschwab/glint/internal/tools/go/analysis"
 	"github.com/lukasschwab/glint/internal/tools/go/analysis/analysisflags"
 )
 
@@ -402,7 +401,26 @@ func applyFixes(actions []*checker.Action, showDiff bool) error {
 	goodFixes := 0
 fixloop:
 	for _, fixact := range fixes {
-		readFile := ianalysis.Pass(fixact.act).ReadFile
+		// NOTE: golang.org/x/tools uses a different function, but we don't have
+		// easy access to Pass without duplicating a lot of internal code. This
+		// may cause strange fix behavior. Consider the comment on ReadFile:
+		//
+		// 	ReadFile returns the contents of the named file.
+		//
+		// 	The only valid file names are the elements of OtherFiles
+		// 	and IgnoredFiles, and names returned by
+		// 	Fset.File(f.FileStart).Name() for each f in Files.
+		//
+		// 	Analyzers must use this function (if provided) instead of
+		// 	accessing the file system directly. This allows a driver to
+		// 	provide a virtualized file tree (including, for example,
+		// 	unsaved editor buffers) and to track dependencies precisely
+		// 	to avoid unnecessary recomputation.
+		//
+		//	readFile := ianalysis.Pass(fixact.act).ReadFile
+		readFile := func(filename string) ([]byte, error) {
+			return os.ReadFile(filename)
+		}
 
 		// Convert analysis.TextEdits to diff.Edits, grouped by file.
 		// Precondition: a prior call to validateFix succeeded.
