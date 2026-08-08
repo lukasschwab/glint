@@ -25,12 +25,16 @@ package main
 
 import (
 	"github.com/lukasschwab/glint"
+	"github.com/lukasschwab/glint/pkg/diagnostics"
 	"github.com/lukasschwab/glint/pkg/golangci"
 )
 
 func main() {
 	analyzers := golangci.DefaultAnalyzers()
 	// analyzers = append(analyzers, projectlint.Analyzer)
+	for _, analyzer := range analyzers {
+		diagnostics.ExcludeGenerated(analyzer)
+	}
 	glint.Main(analyzers...)
 }
 ```
@@ -38,6 +42,11 @@ func main() {
 Run `go mod tidy` in `tools/glint` after adding analyzers. Prefer their public
 `analysis.Analyzer` APIs and configure them in Go; analyzers that only expose a
 golangci-lint integration may need an adapter.
+
+The generated-file filter above suppresses diagnostics without removing those
+files from analyzer inputs, so facts and cross-file analysis remain intact.
+`diagnostics.Filter` can express other repository-specific diagnostic policy
+as a typed Go predicate. Keep such filters narrow and tested.
 
 ## Run it in CI
 
