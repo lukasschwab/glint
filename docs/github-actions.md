@@ -48,6 +48,34 @@ files from analyzer inputs, so facts and cross-file analysis remain intact.
 `diagnostics.Filter` can express other repository-specific diagnostic policy
 as a typed Go predicate. Keep such filters narrow and tested.
 
+## Contain compatibility adapters
+
+Prefer importing a linter's public `analysis.Analyzer` directly. When a
+library exposes a checker with a different API, keep the adapter in the
+repository-owned linter module instead of adding linter-specific behavior to
+Glint itself:
+
+```text
+tools/glint/
+├── internal/
+│   └── adapters/
+│       └── somelinter.go
+├── go.mod
+└── main.go
+```
+
+An adapter should only translate the library's inputs and findings to an
+`analysis.Analyzer`; repository policy and diagnostic exclusions should stay
+visible in the composition. Give each substantial integration its own file
+and focused behavioral tests.
+
+Remember that `go vet` invokes the analysis tool in a package-oriented process
+model. A wrapper that initializes a large global registry, reloads packages,
+or rereads every source file can repeat expensive setup for each package. Such
+tools may be better kept as explicit standalone workflow steps, just like
+formatters and module-level policy checks. This is an integration-performance
+decision, not a reason to make Glint own a fixed catalog of linters.
+
 ## Run it in CI
 
 Set up Go before invoking the action. Include both the application and linter
