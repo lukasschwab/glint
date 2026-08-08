@@ -29,7 +29,14 @@ fi
 binary_directory="$(mktemp -d "${runner_temp%/}/glint-action.XXXXXX")"
 binary="$binary_directory/glint"
 
+build_started=$SECONDS
 go -C "$linter_directory" build -trimpath -o "$binary" "$INPUT_LINTER_PACKAGE"
+build_elapsed=$((SECONDS - build_started))
+
+tool_version="$("$binary" -V=full)"
+tool_identity="${tool_version##* }"
+printf 'Glint linter build: %ss\n' "$build_elapsed"
+printf 'Glint linter identity: %s\n' "$tool_identity"
 
 arguments=()
 while IFS= read -r argument; do
@@ -39,4 +46,11 @@ while IFS= read -r argument; do
 done <<< "$INPUT_ARGUMENTS"
 
 cd "$working_directory"
+analysis_started=$SECONDS
+set +e
 "$binary" "${arguments[@]}"
+status=$?
+set -e
+analysis_elapsed=$((SECONDS - analysis_started))
+printf 'Glint analysis: %ss\n' "$analysis_elapsed"
+exit "$status"
