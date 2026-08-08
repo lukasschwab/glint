@@ -51,8 +51,32 @@ otherwise empty caches, the local backend measured as follows:
 | golangci-lint, Prometheus config | 123.1s | 2.65s | 19.0s |
 
 The closest golangci-lint set was `errcheck`, `govet`, `ineffassign`,
-`staticcheck`, and `unused`. This is evidence about the cache backend, not an
-exact analyzer-for-analyzer comparison.
+`staticcheck`, and `unused`, but it still selected roughly 191 analyzers to
+Glint's 166:
+
+| Analyzer family | Glint | golangci-lint v2.11.4 |
+| --- | ---: | ---: |
+| Staticcheck family | 130 | 154 |
+| `govet` | 33 | 34 |
+| `errcheck`, `ineffassign`, `unused` | 3 | 3 |
+
+Glint runs all 95 `SA` and 35 `S` checks. golangci-lint's `staticcheck`
+additionally bundles all 12 `QF` checks and 12 enabled `ST` checks. For the Go
+version used by Prometheus, golangci-lint's `govet` set includes `hostport` and
+`waitgroup`, while Glint includes `loopclosure`; golangci-lint disables
+`loopclosure` for Go 1.22 and newer.
+
+The implementations also have version skew: Glint uses x/tools v0.48 and
+errcheck v1.20, while golangci-lint v2.11.4 embeds x/tools v0.43 and errcheck
+v1.10. Both use Staticcheck v0.7 and ineffassign v0.2. errcheck v1.20 adds three
+newer `crypto/sha3` default exclusions.
+
+These results are therefore evidence about the cache backends, not an exact
+analyzer-for-analyzer comparison. The mismatch gives golangci-lint about 25
+additional named checks, making the comparison conservative with respect to
+Glint's workload. Restricting golangci-lint to `SA*` and `S*` would narrow the
+difference, but its `govet` policy and embedded dependency versions still
+prevent an exact match.
 
 ### `-fix`
 
