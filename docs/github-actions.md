@@ -51,23 +51,49 @@ as a typed Go predicate. Keep such filters narrow and tested.
 ## Contain compatibility adapters
 
 Prefer importing a linter's public `analysis.Analyzer` directly. When a
-library exposes a checker with a different API, keep the adapter in the
-repository-owned linter module instead of adding linter-specific behavior to
-Glint itself:
+library exposes a checker with a different API, first classify the adapter.
+
+Faithful, reusable GolangCI-Lint compatibility belongs in Glint when it only
+recreates the upstream GolangCI integration and accepts all policy as explicit
+arguments. These adapters live in linter-specific child packages so callers
+who only use `golangci.DefaultAnalyzers` do not compile or link their optional
+dependencies:
+
+```go
+import (
+	"github.com/lukasschwab/glint/pkg/golangci/contextcheck"
+	"github.com/lukasschwab/glint/pkg/golangci/forbidigo"
+	"github.com/lukasschwab/glint/pkg/golangci/gochecknoinits"
+	"github.com/lukasschwab/glint/pkg/golangci/unparam"
+)
+
+context := contextcheck.New("example.com/project")
+forbidden, err := forbidigo.New(patterns)
+noInits := gochecknoinits.New()
+unusedParams := unparam.New(false)
+```
+
+These are not GolangCI defaults, so callers append them deliberately. The
+forbidigo patterns, the module path passed to contextcheck, and unparam's
+exported-function setting remain consumer choices.
+
+Keep repository-specific policy and configuration in the repository-owned
+linter module instead:
 
 ```text
 tools/glint/
 ├── internal/
-│   └── adapters/
-│       └── somelinter.go
+│   └── policy/
+│       └── project_rules.go
 ├── go.mod
 └── main.go
 ```
 
-An adapter should only translate the library's inputs and findings to an
-`analysis.Analyzer`; repository policy and diagnostic exclusions should stay
-visible in the composition. Give each substantial integration its own file
-and focused behavioral tests.
+Do not move repository-specific forbidden patterns, path exceptions, analyzer
+settings, diagnostic filters, or wrappers around libraries that already expose
+a suitable public `analysis.Analyzer`. Keep those choices visible in the
+composition and give substantial consumer integrations focused behavioral
+tests.
 
 Remember that `go vet` invokes the analysis tool in a package-oriented process
 model. A wrapper that initializes a large global registry, reloads packages,
