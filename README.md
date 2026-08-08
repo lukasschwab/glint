@@ -2,6 +2,10 @@
 
 Experimental Go-defined metalinter.
 
+Glint requires Go 1.26 or newer. Its analysis backend is a `go vet`
+compatible unit checker, so compilation, analyzer facts, fixes, and diagnostic
+output use Go's content-addressed build cache.
+
 ## Prospectus
 
 - [x] VS Code integration
@@ -9,7 +13,46 @@ Experimental Go-defined metalinter.
     - [ ] Action using a version in a separate repo
 - [x] `nolint` directives
 - [x] Clear demo of `-fix` working
+- [x] Safe cached diagnostics across concurrent worktrees
 - [ ] Deep-dive the lint scope: compare result sets on go-fiber.
+
+## Caching and concurrency
+
+Glint does not maintain a separate result database. It asks `go vet` to run
+each package as an independent analysis unit and emit JSON into the output
+file introduced by Go 1.26. Go caches that output alongside the package's
+`.vetx` facts and compilation artifacts.
+
+Two details make that safe:
+
+- An invocation-scope digest, including the module-relative working
+  directory, is included in every vet action key. A package analyzed only to
+  produce dependency facts therefore cannot suppress its diagnostics when a
+  later command selects it as a root.
+- Cached filenames are stored as slash-normalized module-relative markers.
+  The outer process rebases them onto the current module directory. Together
+  with `-trimpath`, identical worktrees can share entries without leaking
+  absolute paths from one checkout to another.
+
+Glint relies on the standard Go cache's atomic publication. Multiple Glint
+processes doing read-only analysis may safely share `GOCACHE`; duplicate cold
+work is harmless and no global Glint lock is used. Applying `-fix` runs are
+scoped to the current checkout because Go's fix archives contain destination
+paths. (`-fix -diff` remains safely shareable because it does not mutate
+files.)
+
+On Prometheus commit `e75af38` on 2026-08-07, with dependencies downloaded but
+otherwise empty caches, the local backend measured as follows:
+
+| Runner | Cold | Warm | One-file edit |
+| --- | ---: | ---: | ---: |
+| Glint defaults | 86.2s | 1.42-1.65s | 6.92s |
+| golangci-lint, closest analyzer set | 90.4s | 2.35s | 12.34s |
+| golangci-lint, Prometheus config | 123.1s | 2.65s | 19.0s |
+
+The closest golangci-lint set was `errcheck`, `govet`, `ineffassign`,
+`staticcheck`, and `unused`. This is evidence about the cache backend, not an
+exact analyzer-for-analyzer comparison.
 
 ### `-fix`
 
