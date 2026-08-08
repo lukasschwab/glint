@@ -2,14 +2,8 @@
 
 Experimental Go-defined metalinter.
 
-## Prospectus
-
-- [x] VS Code integration
-- [x] GitHub Action example
-    - [ ] Action using a version in a separate repo
-- [x] `nolint` directives
-- [x] Clear demo of `-fix` working
-- [ ] Deep-dive the lint scope: compare result sets on go-fiber.
+> [!NOTE]
+> Glint requires Go 1.26 or newer.
 
 ### `-fix`
 
