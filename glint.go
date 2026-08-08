@@ -1,116 +1,284 @@
 package glint
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 
-	"github.com/lukasschwab/glint/internal/tools/go/analysis/analysisflags"
-	"github.com/lukasschwab/glint/pkg/checkrunner"
 	"github.com/lukasschwab/glint/pkg/nolint"
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/checker"
-	"golang.org/x/tools/go/packages"
+	"golang.org/x/tools/go/analysis/unitchecker"
 )
 
-var (
-	// Should control file set and destination.
-	UseStdout = false
-)
+const unitcheckerInnerEnv = "GLINT_UNITCHECKER_INNER"
 
-type Logger interface {
-	Log(string)
-}
+var cacheScope string
 
-// Main modeled on [multichecker.Main](https://cs.opensource.google/go/x/tools/+/refs/tags/v0.29.0:go/analysis/multichecker/multichecker.go).
+// Main runs analyzers as a go vet compatible tool. User invocations are
+// delegated to go vet so compilation, facts, and diagnostics all use Go's
+// content-addressed build cache.
 func Main(analyzers ...*analysis.Analyzer) {
 	progname := filepath.Base(os.Args[0])
 	log.SetFlags(0)
 	log.SetPrefix(progname + ": ")
 
-	for _, a := range analyzers {
-		nolint.Wrap(a)
+	for _, analyzer := range analyzers {
+		nolint.Wrap(analyzer)
 	}
-
 	if err := analysis.Validate(analyzers); err != nil {
 		log.Fatal(err)
 	}
 
-	checkrunner.RegisterFlags()
-	flag.BoolVar(&UseStdout, "stdout", false, "write linter findings to stdout instead of stderr (default false)")
+	// This no-op flag is included in Go's vet action key. It keeps a package's
+	// dependency-only (VetxOnly) result from satisfying a later invocation in
+	// which that package is an explicit diagnostic root.
+	flag.StringVar(&cacheScope, "glint.scope", "", "internal cache scope")
 
-	// NOTE: could use this to list and filter analyzers.
-	analysisflags.Parse([]*analysis.Analyzer{}, true)
+	if os.Getenv(unitcheckerInnerEnv) == "1" || isUnitcheckerProtocolInvocation(os.Args[1:]) {
+		unitchecker.Main(analyzers...)
+		return
+	}
 
-	args := flag.Args()
+	if index, configFile, ok := findConfigArgument(os.Args[1:]); ok {
+		os.Exit(runUnitcheckerWrapper(index, configFile))
+	}
+
+	os.Exit(runUserCommand(os.Args[1:]))
+}
+
+func isUnitcheckerProtocolInvocation(args []string) bool {
 	if len(args) == 0 {
-		fmt.Fprintf(os.Stderr, `%[1]s is a tool for static analysis of Go programs.
-
-Usage: %[1]s [-flag] [package]
-
-Run '%[1]s help' for more detail,
- or '%[1]s help name' for details and flags of a specific analyzer.
-`, progname)
-		os.Exit(1)
+		return false
 	}
-
 	if args[0] == "help" {
-		analysisflags.Help(progname, analyzers, args[1:])
-		os.Exit(0)
+		return true
 	}
-
-	runnable := buildRunner(args, analyzers...)
-
-	sink := os.Stderr
-	if UseStdout {
-		sink = os.Stdout
+	for _, arg := range args {
+		if arg == "-flags" || strings.HasPrefix(arg, "-V=") {
+			return true
+		}
 	}
-
-	os.Exit(checkrunner.Run(args, runnable, sink))
+	return false
 }
 
-func buildRunner(args []string, analyzers ...*analysis.Analyzer) checkrunner.Runnable {
-	grouped := groupByLoadMode(analyzers)
+func findConfigArgument(args []string) (int, string, bool) {
+	for index, arg := range args {
+		if strings.HasSuffix(arg, ".cfg") {
+			return index, arg, true
+		}
+	}
+	return 0, "", false
+}
 
-	return func(opts *checker.Options) (*checker.Graph, error) {
-		var totalGraph *checker.Graph
+type userOptions struct {
+	args      []string
+	json      bool
+	stdout    bool
+	fix       bool
+	diff      bool
+	showUsage bool
+}
 
-		for loadMode, analyzers := range grouped {
-			pkgs, err := packages.Load(&packages.Config{
-				Mode:  loadMode,
-				Tests: true,
-			}, args...)
+func parseUserOptions(args []string) (userOptions, error) {
+	var options userOptions
+	for index := 0; index < len(args); index++ {
+		arg := args[index]
+		switch {
+		case arg == "-stdout":
+			options.stdout = true
+		case strings.HasPrefix(arg, "-stdout="):
+			value, err := strconv.ParseBool(strings.TrimPrefix(arg, "-stdout="))
 			if err != nil {
-				panic(err)
+				return options, fmt.Errorf("invalid value for -stdout: %w", err)
 			}
-			if graph, err := checker.Analyze(analyzers, pkgs, opts); err != nil {
-				panic(err)
-			} else {
-				totalGraph = mergeGraphs(totalGraph, graph)
+			options.stdout = value
+		case arg == "-json":
+			options.json = true
+		case strings.HasPrefix(arg, "-json="):
+			value, err := strconv.ParseBool(strings.TrimPrefix(arg, "-json="))
+			if err != nil {
+				return options, fmt.Errorf("invalid value for -json: %w", err)
 			}
+			options.json = value
+		case arg == "-alternateTool":
+			// vscode-go adds this compatibility flag to alternate linters.
+		case arg == "-fix":
+			options.fix = true
+			options.args = append(options.args, arg)
+		case strings.HasPrefix(arg, "-fix="):
+			value, err := strconv.ParseBool(strings.TrimPrefix(arg, "-fix="))
+			if err != nil {
+				return options, fmt.Errorf("invalid value for -fix: %w", err)
+			}
+			options.fix = value
+			options.args = append(options.args, arg)
+		case arg == "-diff":
+			options.diff = true
+			options.args = append(options.args, arg)
+		case strings.HasPrefix(arg, "-diff="):
+			value, err := strconv.ParseBool(strings.TrimPrefix(arg, "-diff="))
+			if err != nil {
+				return options, fmt.Errorf("invalid value for -diff: %w", err)
+			}
+			options.diff = value
+			options.args = append(options.args, arg)
+		case arg == "-test":
+			options.args = append(options.args, "-tests=true")
+		case strings.HasPrefix(arg, "-test="):
+			options.args = append(options.args, "-tests="+strings.TrimPrefix(arg, "-test="))
+		case arg == "-trimpath" || strings.HasPrefix(arg, "-trimpath="):
+			// Glint always enables trimpath so action keys can be shared safely
+			// between worktrees. Cached paths are normalized separately.
+		case arg == "-h" || arg == "-help" || arg == "--help":
+			options.showUsage = true
+		default:
+			options.args = append(options.args, arg)
 		}
-
-		return totalGraph, nil
 	}
+	return options, nil
 }
 
-func mergeGraphs(graphs ...*checker.Graph) *checker.Graph {
-	final := &checker.Graph{}
-	for _, graph := range graphs {
-		if graph != nil {
-			final.Roots = append(final.Roots, graph.Roots...)
+func runUserCommand(args []string) int {
+	options, err := parseUserOptions(args)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "glint: %v\n", err)
+		return 2
+	}
+	if options.showUsage || len(options.args) == 0 {
+		printUsage(os.Stderr)
+		if options.showUsage {
+			return 0
+		}
+		return 2
+	}
+
+	executable, err := os.Executable()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "glint: locate executable: %v\n", err)
+		return 1
+	}
+	if evaluated, err := filepath.EvalSymlinks(executable); err == nil {
+		executable = evaluated
+	}
+
+	workingDirectoryIdentity, err := cacheWorkingDirectoryIdentity()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "glint: identify working directory for cache: %v\n", err)
+		return 1
+	}
+	scopeArguments := append(append([]string(nil), options.args...), "glint-working-directory="+workingDirectoryIdentity)
+	if options.fix && !options.diff {
+		workingDirectory, err := os.Getwd()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "glint: locate working directory for fixes: %v\n", err)
+			return 1
+		}
+		scopeArguments = append(scopeArguments, "glint-fix-directory="+workingDirectory)
+	}
+	scope := invocationScope(scopeArguments)
+	goArgs := []string{
+		"vet",
+		"-trimpath",
+		"-vettool=" + executable,
+		"-glint.scope=" + scope,
+	}
+	structuredOutput := !options.fix && !options.diff
+	if structuredOutput {
+		goArgs = append(goArgs, "-json")
+	}
+	goArgs = append(goArgs, options.args...)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	command := exec.Command("go", goArgs...)
+	command.Stdin = os.Stdin
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+	runErr := command.Run()
+
+	if stderr.Len() > 0 {
+		_, _ = io.Copy(os.Stderr, &stderr)
+	}
+
+	output := stdout.Bytes()
+	if len(output) > 0 && structuredOutput {
+		output, err = rebaseCachedOutput(output)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "glint: rebase cached diagnostics: %v\n", err)
+			return 1
 		}
 	}
-	return final
+
+	if !structuredOutput {
+		if len(output) > 0 {
+			output, err = rebaseCachedText(output)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "glint: rebase cached fix output: %v\n", err)
+				return 1
+			}
+			_, _ = os.Stdout.Write(output)
+		}
+	} else if options.json {
+		if len(output) > 0 {
+			formatted, err := mergeAndFormatJSON(output)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "glint: parse analyzer JSON: %v\n", err)
+				return 1
+			}
+			_, _ = os.Stdout.Write(formatted)
+		}
+	} else if len(output) > 0 {
+		sink := io.Writer(os.Stderr)
+		if options.stdout {
+			sink = os.Stdout
+		}
+		diagnostics, analysisErrors, err := printTextOutput(sink, output)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "glint: parse analyzer JSON: %v\n", err)
+			return 1
+		}
+		if analysisErrors > 0 {
+			return 1
+		}
+		if diagnostics > 0 && runErr == nil {
+			return 3
+		}
+	}
+
+	if runErr != nil {
+		var exitError *exec.ExitError
+		if errors.As(runErr, &exitError) {
+			return exitError.ExitCode()
+		}
+		fmt.Fprintf(os.Stderr, "glint: run go vet: %v\n", runErr)
+		return 1
+	}
+	return 0
 }
 
-func groupByLoadMode(analyzers []*analysis.Analyzer) map[packages.LoadMode][]*analysis.Analyzer {
-	groups := make(map[packages.LoadMode][]*analysis.Analyzer)
-	for _, a := range analyzers {
-		mode := LoadMode(a)
-		groups[mode] = append(groups[mode], a)
+func invocationScope(args []string) string {
+	hash := sha256.New()
+	for _, arg := range args {
+		_, _ = io.WriteString(hash, arg)
+		_, _ = hash.Write([]byte{0})
 	}
-	return groups
+	return fmt.Sprintf("%x", hash.Sum(nil))
+}
+
+func printUsage(writer io.Writer) {
+	_, _ = fmt.Fprintf(writer, `glint is a cached Go analysis driver.
+
+Usage: glint [-flag] [package]
+
+Run 'glint help' for analyzer details and flags.
+`)
 }
