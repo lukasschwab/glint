@@ -30,7 +30,14 @@ binary_directory="$(mktemp -d "${runner_temp%/}/glint-action.XXXXXX")"
 binary="$binary_directory/glint"
 
 build_started=$SECONDS
-go -C "$linter_directory" build -trimpath -o "$binary" "$INPUT_LINTER_PACKAGE"
+# The enclosing application's revision is not part of the linter. Stamping it
+# would give an unchanged analyzer binary a new vet-tool identity on every
+# application commit and invalidate all cached analyzer results.
+go -C "$linter_directory" build \
+	-trimpath \
+	-buildvcs=false \
+	-o "$binary" \
+	"$INPUT_LINTER_PACKAGE"
 build_elapsed=$((SECONDS - build_started))
 
 tool_version="$("$binary" -V=full)"

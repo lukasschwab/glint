@@ -116,6 +116,12 @@ can restore both. The first run after an analyzer, setting, build tag, source,
 or dependency change does the work; unchanged reruns reuse the cached analyzer
 results.
 
+The linter build disables Go's automatic VCS stamping. Otherwise, an unrelated
+commit in the application repository would change the linter binary's vet-tool
+identity and invalidate every analyzer result. Linter source and dependency
+changes still produce a new build ID and invalidate the appropriate cache
+entries.
+
 The action does not override `GOCACHE` or `GOCACHEPROG`. Glint inherits both,
 which lets repositories use the same local or remote build-cache policy as
 their other Go commands. Its trim-path invocation also makes cache entries safe
