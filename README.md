@@ -48,7 +48,10 @@ $ go run ./cmd/glint -fix ./pkg/nolint/testdata # Apply changes
 
 ### `nolint` directives
 
-`nolint` directives are blunt instruments for `glint`: adding `//nolint:analyzername` to a file *completely removes* that file from that analyzer's run. There's no per-line or per-block `nolint`ing here.
+`nolint` directives are blunt instruments for `glint`: adding
+`//nolint:analyzername` suppresses that analyzer's diagnostics for the entire
+file. The file remains an analyzer input so facts and cross-file results are
+preserved. There's no per-line or per-block `nolint`ing here.
 
 You shouldn't be using them anyway.
 
