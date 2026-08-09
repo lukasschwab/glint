@@ -7,7 +7,7 @@ Experimental Go-defined metalinter.
 
 Glint runs ordinary [`analysis.Analyzer`](https://pkg.go.dev/golang.org/x/tools/go/analysis)
 values through `go vet`, so analyzer results participate in the Go build cache.
-The intended integration is a small, repository-owned Go program:
+Add a small Go program to your project:
 
 ```go
 package main
