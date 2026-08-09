@@ -33,9 +33,9 @@ type directiveIndex struct {
 }
 
 type fileDirectives struct {
-	file   *ast.File
-	lines  []lineRange
-	scopes []tokenRange
+	tokenFile *token.File
+	lines     []lineRange
+	scopes    []tokenRange
 }
 
 type lineRange struct {
@@ -51,7 +51,7 @@ type tokenRange struct {
 func newIndex(files []*ast.File, fset *token.FileSet, analyzer string) directiveIndex {
 	index := directiveIndex{files: make([]fileDirectives, 0, len(files)), fset: fset}
 	for _, file := range files {
-		entry := fileDirectives{file: file}
+		entry := fileDirectives{tokenFile: fset.File(file.Pos())}
 		var directives []matchedDirective
 		for _, group := range file.Comments {
 			for _, comment := range group.List {
@@ -64,14 +64,14 @@ func newIndex(files []*ast.File, fset *token.FileSet, analyzer string) directive
 		if len(directives) == 0 {
 			continue
 		}
-		codeEnds, attached := indexNodes(file, fset, directives)
+		codePositions, attached := indexNodes(file, fset, directives)
 		for _, directive := range directives {
 			groupStart := fset.PositionFor(directive.group.Pos(), false).Line
 			groupEnd := fset.PositionFor(directive.group.End(), false).Line
 			entry.lines = append(entry.lines, lineRange{groupStart, groupEnd})
 
 			commentLine := fset.PositionFor(directive.comment.Pos(), false).Line
-			if end, ok := codeEnds[commentLine]; ok && end <= directive.comment.Pos() {
+			if position, ok := codePositions[commentLine]; ok && position <= directive.comment.Pos() {
 				continue
 			}
 			entry.scopes = append(entry.scopes, attached[directive.group]...)
@@ -88,7 +88,7 @@ func (index directiveIndex) suppresses(pos token.Pos) bool {
 		return false
 	}
 	for _, entry := range index.files {
-		if pos < entry.file.Pos() || pos > entry.file.End() {
+		if pos < token.Pos(entry.tokenFile.Base()) || pos > token.Pos(entry.tokenFile.Base()+entry.tokenFile.Size()) {
 			continue
 		}
 		line := index.fset.PositionFor(pos, false).Line
@@ -121,16 +121,17 @@ func suppressesAnalyzer(comment, analyzer string) bool {
 	if end := strings.Index(directive, "//"); end >= 0 {
 		directive = directive[:end]
 	}
+	matches := false
 	for name := range strings.SplitSeq(directive, ",") {
 		name = strings.TrimSpace(name)
-		if end := strings.IndexAny(name, " \t"); end >= 0 {
-			name = name[:end]
+		if name == "" || strings.ContainsAny(name, " \t") {
+			return false
 		}
 		if name == analyzer {
-			return true
+			matches = true
 		}
 	}
-	return false
+	return matches
 }
 
 type attachmentPoint struct {
@@ -152,7 +153,8 @@ func indexNodes(file *ast.File, fset *token.FileSet, directives []matchedDirecti
 		groups[point] = append(groups[point], directive.group)
 	}
 
-	ends := make(map[int]token.Pos)
+	positions := make(map[int]token.Pos)
+	tokenFile := fset.File(file.Pos())
 	attached := make(map[*ast.CommentGroup][]tokenRange)
 	ast.Inspect(file, func(node ast.Node) bool {
 		if node == nil {
@@ -165,18 +167,28 @@ func indexNodes(file *ast.File, fset *token.FileSet, directives []matchedDirecti
 
 		start := fset.PositionFor(node.Pos(), false)
 		for _, group := range groups[attachmentPoint{line: start.Line, column: start.Column}] {
-			attached[group] = append(attached[group], tokenRange{node.Pos(), node.End()})
+			if node == file {
+				attached[group] = append(attached[group], tokenRange{
+					start: token.Pos(tokenFile.Base()),
+					end:   token.Pos(tokenFile.Base() + tokenFile.Size()),
+				})
+			} else {
+				attached[group] = append(attached[group], tokenRange{node.Pos(), node.End()})
+			}
 		}
 		if node == file {
 			return true
 		}
 
+		if node.Pos() > positions[start.Line] {
+			positions[start.Line] = node.Pos()
+		}
 		end := node.End()
 		line := fset.PositionFor(end, false).Line
-		if end > ends[line] {
-			ends[line] = end
+		if end > positions[line] {
+			positions[line] = end
 		}
 		return true
 	})
-	return ends, attached
+	return positions, attached
 }

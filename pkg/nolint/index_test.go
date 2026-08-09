@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"strings"
 	"testing"
 
 	"golang.org/x/tools/go/analysis"
@@ -18,12 +19,50 @@ func TestParseDirective(t *testing.T) {
 		{"//nolint:probe", "probe", true},
 		{"//nolint: probe, other // reason", "probe", true},
 		{"//nolint:other", "probe", false},
+		{"//nolint:probe typo", "probe", false},
+		{"//nolint:probe, other typo", "probe", false},
 		{"//nolint:file:probe", "probe", false},
 		{"//nolint:prober", "probe", false},
 	} {
 		if got := suppressesAnalyzer(test.comment, test.analyzer); got != test.matches {
 			t.Errorf("suppressesAnalyzer(%q, %q) = %v, want %v", test.comment, test.analyzer, got, test.matches)
 		}
+	}
+}
+
+func TestTrailingDirectiveOnBlockOpenerDoesNotAttachForward(t *testing.T) {
+	fset := token.NewFileSet()
+	commentColumn := len("\tfor { ") + 1
+	source := "package p\nfunc f() {\n\tfor { //nolint:probe\n" +
+		strings.Repeat(" ", commentColumn-1) + "main(nil)\n\t\tbreak\n\t}\n}\n"
+	file, err := parser.ParseFile(fset, "test.go", source, parser.ParseComments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var call *ast.CallExpr
+	ast.Inspect(file, func(node ast.Node) bool {
+		if candidate, ok := node.(*ast.CallExpr); ok {
+			call = candidate
+		}
+		return true
+	})
+	if call == nil {
+		t.Fatal("call expression not found")
+	}
+	if got := newIndex([]*ast.File{file}, fset, "probe").suppresses(call.Pos()); got {
+		t.Fatal("trailing directive attached to the following statement")
+	}
+}
+
+func TestFileScopeIncludesTrailingComments(t *testing.T) {
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "test.go", "//nolint:probe\npackage p\nvar Value = 1\n// trailing comment\n", parser.ParseComments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tokenFile := fset.File(file.Pos())
+	if got := newIndex([]*ast.File{file}, fset, "probe").suppresses(token.Pos(tokenFile.Base() + tokenFile.Size())); !got {
+		t.Fatal("file-scoped directive did not cover the end of the token file")
 	}
 }
 
