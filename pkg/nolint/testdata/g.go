@@ -13,13 +13,13 @@ func unsuppressedDeclaration() {
 	var _ = main(nil) // want "nil passed to interface parameter"
 }
 
-//nolint:decl:nilinterface,inspectprobe
+//nolint:nilinterface,inspectprobe
 var declarationValue = main(nil)
 
-var explicitLine = main(nil) //nolint:line:nilinterface,inspectprobe
+var anotherLine = main(nil) //nolint:nilinterface,inspectprobe
 
 var (
-	//nolint:decl:nilinterface,inspectprobe
+	//nolint:nilinterface,inspectprobe
 	valueSpec  = main(nil)
 	otherValue = main(nil) // want "nil passed to interface parameter"
 )

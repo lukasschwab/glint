@@ -1,6 +1,6 @@
 package testdata
 
-var unrelated = 0 //nolint:decl:nilinterface,inspectprobe
+var unrelated = 0 //nolint:nilinterface,inspectprobe
 
 func notAttachedToTrailingComment() {
 	var _ = main(nil) // want "nil passed to interface parameter"

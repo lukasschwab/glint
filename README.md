@@ -53,7 +53,7 @@ reported diagnostics (and therefore their suggested fixes) after the analyzer
 has run: files remain analyzer inputs, and results and facts are preserved.
 They do not avoid analyzer work or fact production.
 
-The grammar is `//nolint:[scope:]analyzer[, analyzer...] [// explanation]`.
+The grammar is `//nolint:analyzer[, analyzer...] [// explanation]`.
 Whitespace around analyzer names is accepted. A name must exactly match an
 analyzer; unknown or malformed names are silent no-ops for now.
 
@@ -67,12 +67,10 @@ Ordinary GolangCI-compatible bare directives infer scope from their placement:
 - An unattached directive, including one at the top of the file, covers the
   whole file.
 
-`file:`, `line:`, and `decl:` force those respective scopes. `decl:` only
-works in a declaration's attached leading comment group.
-
 This deliberately changes one legacy behavior: a bare directive directly
-attached to a declaration or after code now scopes narrowly. Spell `file:` to
-retain file-wide suppression in either position.
+attached to a declaration or after code now scopes narrowly. Move it to an
+unattached comment, such as the top of the file, to retain file-wide
+suppression.
 
 File scope takes precedence; otherwise any matching line or enclosing
 declaration scope suppresses the diagnostic. Directives never apply to another
@@ -98,11 +96,6 @@ func example() {
 
 //nolint:nilinterface // third-party interface contract
 func compatible(value any) {
-	_ = consume(value)
-}
-
-//nolint:file:nilinterface // force file scope despite declaration attachment
-func legacyFileWide(value any) {
 	_ = consume(value)
 }
 ```

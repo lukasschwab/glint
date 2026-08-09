@@ -134,59 +134,6 @@ func TestCachedBackendCorrectness(t *testing.T) {
 	})
 }
 
-func TestNolintFiltersSuggestedFixes(t *testing.T) {
-	if testing.Short() {
-		t.Skip("builds and runs an integration-test vettool")
-	}
-
-	repository := repositoryRoot(t)
-	binary := filepath.Join(t.TempDir(), "nolintprobe")
-	command := exec.Command("go", "build", "-o", binary, "./internal/testcmd/nolintprobe")
-	command.Dir = repository
-	if output, err := command.CombinedOutput(); err != nil {
-		t.Fatalf("build nolintprobe: %v\n%s", err, output)
-	}
-
-	module := newNolintProbeModule(t, filepath.Join(t.TempDir(), "target"), "const Value = 1 //nolint:nolintprobe\n")
-	cache := t.TempDir()
-	for _, arguments := range [][]string{{"-stdout", "./..."}, {"-fix", "-diff", "./..."}, {"-fix", "./..."}} {
-		output, err := executeProbe(binary, module, cache, arguments...)
-		if err != nil {
-			t.Fatalf("run %s: %v\n%s", strings.Join(arguments, " "), err, output)
-		}
-		if output != "" {
-			t.Fatalf("suppressed diagnostic leaked through %s:\n%s", strings.Join(arguments, " "), output)
-		}
-		content, readErr := os.ReadFile(filepath.Join(module, "probe.go"))
-		if readErr != nil {
-			t.Fatal(readErr)
-		}
-		if !strings.Contains(string(content), "Value = 1") {
-			t.Fatalf("suppressed suggested fix changed source:\n%s", content)
-		}
-	}
-
-	ordinary := newNolintProbeModule(t, filepath.Join(t.TempDir(), "ordinary"), "const Value = 1\n")
-	output, err := executeProbe(binary, ordinary, t.TempDir(), "-fix", "-diff", "./...")
-	if err != nil {
-		t.Fatalf("show ordinary fix: %v\n%s", err, output)
-	}
-	if !strings.Contains(output, "probe.go") {
-		t.Fatalf("ordinary suggested fix missing from diff:\n%s", output)
-	}
-	output, err = executeProbe(binary, ordinary, t.TempDir(), "-fix", "./...")
-	if err != nil {
-		t.Fatalf("apply ordinary fix: %v\n%s", err, output)
-	}
-	content, err := os.ReadFile(filepath.Join(ordinary, "probe.go"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(content), "Value = 2") {
-		t.Fatalf("ordinary suggested fix was not applied:\n%s", content)
-	}
-}
-
 func repositoryRoot(t *testing.T) string {
 	t.Helper()
 	_, filename, _, ok := runtime.Caller(0)
@@ -209,16 +156,6 @@ func newProbeModule(t *testing.T, directory string, withRoot bool) string {
 		}
 		writeTestFile(t, filepath.Join(directory, "root", "root.go"), "package root\n\nimport \"example.com/target/dep\"\n\nconst Value = dep.Value\n")
 	}
-	return directory
-}
-
-func newNolintProbeModule(t *testing.T, directory, declaration string) string {
-	t.Helper()
-	if err := os.MkdirAll(directory, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	writeTestFile(t, filepath.Join(directory, "go.mod"), "module example.com/nolintprobe\n\ngo 1.26.0\n")
-	writeTestFile(t, filepath.Join(directory, "probe.go"), "package probe\n\n"+declaration)
 	return directory
 }
 

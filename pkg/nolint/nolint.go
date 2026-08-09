@@ -49,38 +49,25 @@ func newIndex(files []*ast.File, fset *token.FileSet, analyzer string) directive
 	for _, file := range files {
 		entry := fileDirectives{file: file}
 		var directives []matchedDirective
-		needDeclarations := false
-		needCodeEnds := false
 		for _, group := range file.Comments {
 			for _, comment := range group.List {
-				directive, matches := parseDirective(comment.Text, analyzer)
-				if !matches {
+				if !suppressesAnalyzer(comment.Text, analyzer) {
 					continue
 				}
-				directives = append(directives, matchedDirective{group, comment, directive})
-				needDeclarations = needDeclarations || !directive.explicit || directive.scope == declarationScope
-				needCodeEnds = needCodeEnds || !directive.explicit
+				directives = append(directives, matchedDirective{group, comment})
 			}
 		}
 		if len(directives) == 0 {
 			continue
 		}
-		var declarations map[*ast.CommentGroup][]tokenRange
-		if needDeclarations {
-			declarations = declarationRanges(file)
-		}
-		var codeEnds map[int]token.Pos
-		if needCodeEnds {
-			codeEnds = codeEndsByLine(file, fset)
-		}
+		declarations := declarationRanges(file)
+		codeEnds := codeEndsByLine(file, fset)
 		for _, directive := range directives {
-			scope := directive.directive.scope
-			if !directive.directive.explicit {
-				if ranges := declarations[directive.group]; len(ranges) > 0 {
-					scope = declarationScope
-				} else if end, ok := codeEnds[fset.PositionFor(directive.comment.Pos(), false).Line]; ok && end <= directive.comment.Pos() {
-					scope = lineScope
-				}
+			scope := fileScope
+			if ranges := declarations[directive.group]; len(ranges) > 0 {
+				scope = declarationScope
+			} else if end, ok := codeEnds[fset.PositionFor(directive.comment.Pos(), false).Line]; ok && end <= directive.comment.Pos() {
+				scope = lineScope
 			}
 			switch scope {
 			case fileScope:
@@ -131,37 +118,17 @@ const (
 	declarationScope
 )
 
-type parsedDirective struct {
-	scope    scope
-	explicit bool
-}
-
 type matchedDirective struct {
-	group     *ast.CommentGroup
-	comment   *ast.Comment
-	directive parsedDirective
+	group   *ast.CommentGroup
+	comment *ast.Comment
 }
 
-func parseDirective(comment, analyzer string) (parsedDirective, bool) {
+func suppressesAnalyzer(comment, analyzer string) bool {
 	directive, ok := strings.CutPrefix(comment, "//nolint:")
 	if !ok {
-		return parsedDirective{}, false
+		return false
 	}
 	directive = strings.TrimSpace(directive)
-	parsed := parsedDirective{scope: fileScope}
-	for _, candidate := range []struct {
-		prefix string
-		scope  scope
-	}{
-		{"file:", fileScope},
-		{"line:", lineScope},
-		{"decl:", declarationScope},
-	} {
-		if rest, ok := strings.CutPrefix(directive, candidate.prefix); ok {
-			parsed.scope, parsed.explicit, directive = candidate.scope, true, rest
-			break
-		}
-	}
 	if end := strings.Index(directive, "//"); end >= 0 {
 		directive = directive[:end]
 	}
@@ -171,10 +138,10 @@ func parseDirective(comment, analyzer string) (parsedDirective, bool) {
 			name = name[:end]
 		}
 		if name == analyzer {
-			return parsed, true
+			return true
 		}
 	}
-	return parsed, false
+	return false
 }
 
 func declarationRanges(file *ast.File) map[*ast.CommentGroup][]tokenRange {
