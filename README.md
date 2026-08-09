@@ -48,10 +48,41 @@ $ go run ./cmd/glint -fix ./pkg/nolint/testdata # Apply changes
 
 ### `nolint` directives
 
-`nolint` directives are blunt instruments for `glint`: adding
-`//nolint:analyzername` suppresses that analyzer's diagnostics for the entire
-file. The file remains an analyzer input so facts and cross-file results are
-preserved. There's no per-line or per-block `nolint`ing here.
+`nolint` directives suppress diagnostics from named analyzers. They filter
+reported diagnostics (and therefore their suggested fixes) after the analyzer
+has run: files remain analyzer inputs, and results and facts are preserved.
+They do not avoid analyzer work or fact production.
+
+The grammar is `//nolint:[scope:]analyzer[, analyzer...] [// explanation]`.
+Whitespace around analyzer names is accepted. A name must exactly match an
+analyzer; unknown or malformed names are silent no-ops for now.
+
+Ordinary GolangCI-compatible bare directives infer scope from their placement:
+
+- A directive in the leading comment group attached to a `func`, `type`,
+  `const`, `var`, or parenthesized declaration value spec covers that
+  declaration's token range.
+- A directive after source code on the same physical line covers diagnostics
+  on that line.
+- An unattached directive, including one at the top of the file, covers the
+  whole file.
+
+`file:`, `line:`, and `decl:` force those respective scopes. `decl:` only
+works in a declaration's attached leading comment group.
+
+This deliberately changes one legacy behavior: a bare directive directly
+attached to a declaration or after code now scopes narrowly. Spell `file:` to
+retain file-wide suppression in either position.
+
+File scope takes precedence; otherwise any matching line or enclosing
+declaration scope suppresses the diagnostic. Directives never apply to another
+analyzer. Diagnostics without a valid primary position are never suppressed,
+because Glint cannot reliably associate them with source text.
+
+Arbitrary statement/block attachment is deliberately not supported. A
+declaration directive must be in the leading comment group ending immediately
+before the eligible declaration; comments within a function do not reach
+backward or attach to the next statement.
 
 You shouldn't be using them anyway.
 
@@ -61,7 +92,19 @@ For example, exempt a file from `nilinterface` linting:
 //nolint:nilinterface
 package main
 
-// ...
+func example() {
+	ignoreErr() //nolint:errcheck
+}
+
+//nolint:nilinterface // third-party interface contract
+func compatible(value any) {
+	_ = consume(value)
+}
+
+//nolint:file:nilinterface // force file scope despite declaration attachment
+func legacyFileWide(value any) {
+	_ = consume(value)
+}
 ```
 
 ### `vscode-go`
