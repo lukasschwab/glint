@@ -1,4 +1,4 @@
 package testdata
 
-//nolint:nilinterface
+//nolint:nilinterface,inspectprobe
 var _ = main(nil)

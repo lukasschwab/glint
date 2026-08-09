@@ -5,6 +5,26 @@ Experimental Go-defined metalinter.
 > [!NOTE]
 > Glint requires Go 1.26 or newer.
 
+Glint runs ordinary [`analysis.Analyzer`](https://pkg.go.dev/golang.org/x/tools/go/analysis)
+values through `go vet`, so analyzer results participate in the Go build cache.
+Add a small Go program to your project:
+
+```go
+package main
+
+import (
+	"github.com/lukasschwab/glint"
+	"github.com/lukasschwab/glint/pkg/golangci"
+)
+
+func main() {
+	glint.Main(golangci.DefaultAnalyzers()...)
+}
+```
+
+Add, remove, and configure analyzers in Go. See [GitHub Actions](docs/github-actions.md)
+for an isolated tools module and cache-aware CI setup.
+
 ### `-fix`
 
 `glint` can apply analyzer-produced autofixes.
@@ -28,7 +48,10 @@ $ go run ./cmd/glint -fix ./pkg/nolint/testdata # Apply changes
 
 ### `nolint` directives
 
-`nolint` directives are blunt instruments for `glint`: adding `//nolint:analyzername` to a file *completely removes* that file from that anlyzer's run. There's no per-line or per-block `nolint`ing here.
+`nolint` directives are blunt instruments for `glint`: adding
+`//nolint:analyzername` suppresses that analyzer's diagnostics for the entire
+file. The file remains an analyzer input so facts and cross-file results are
+preserved. There's no per-line or per-block `nolint`ing here.
 
 You shouldn't be using them anyway.
 

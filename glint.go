@@ -132,9 +132,18 @@ func parseUserOptions(args []string) (userOptions, error) {
 			options.diff = value
 			options.args = append(options.args, arg)
 		case arg == "-test":
-			options.args = append(options.args, "-tests=true")
+			// go vet always analyzes test files. Do not translate this
+			// multichecker compatibility flag to -tests: a linter may have
+			// an analyzer named "tests", and enabling any analyzer by name
+			// makes unitchecker disable every other analyzer.
 		case strings.HasPrefix(arg, "-test="):
-			options.args = append(options.args, "-tests="+strings.TrimPrefix(arg, "-test="))
+			value, err := strconv.ParseBool(strings.TrimPrefix(arg, "-test="))
+			if err != nil {
+				return options, fmt.Errorf("invalid value for -test: %w", err)
+			}
+			if !value {
+				return options, fmt.Errorf("-test=false is not supported by the go vet backend")
+			}
 		case arg == "-trimpath" || strings.HasPrefix(arg, "-trimpath="):
 			// Glint always enables trimpath so action keys can be shared safely
 			// between worktrees. Cached paths are normalized separately.
