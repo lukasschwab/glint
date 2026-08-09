@@ -57,30 +57,23 @@ The grammar is `//nolint:analyzer[, analyzer...] [// explanation]`.
 Whitespace around analyzer names is accepted. A name must exactly match an
 analyzer; unknown or malformed names are silent no-ops for now.
 
-Ordinary GolangCI-compatible bare directives infer scope from their placement:
+Ordinary GolangCI-compatible directives infer scope from their placement. A
+directive starts with the physical lines occupied by its comment group. A
+leading comment group also covers an AST node when the group ends immediately
+before the node and both start in the same column. Consequently:
 
-- A directive in the leading comment group attached to a `func`, `type`,
-  `const`, `var`, or parenthesized declaration value spec covers that
-  declaration's token range.
-- A directive after source code on the same physical line covers diagnostics
-  on that line.
-- An unattached directive, including one at the top of the file, covers the
-  whole file.
+- A directive after source code covers only that physical line.
+- A directive before a function, declaration, or statement covers that node's
+  token range, including nested code.
+- A directive before a standalone `{ ... }` block covers that block.
+- A directive immediately before the `package` clause covers the file.
+- A blank line or different indentation prevents attachment. The directive
+  then covers only its own comment lines, which usually suppresses nothing.
 
-This deliberately changes one legacy behavior: a bare directive directly
-attached to a declaration or after code now scopes narrowly. Move it to an
-unattached comment, such as the top of the file, to retain file-wide
-suppression.
-
-File scope takes precedence; otherwise any matching line or enclosing
-declaration scope suppresses the diagnostic. Directives never apply to another
-analyzer. Diagnostics without a valid primary position are never suppressed,
-because Glint cannot reliably associate them with source text.
-
-Arbitrary statement/block attachment is deliberately not supported. A
-declaration directive must be in the leading comment group ending immediately
-before the eligible declaration; comments within a function do not reach
-backward or attach to the next statement.
+Any matching line or node range suppresses the diagnostic. Directives never
+apply to another analyzer. Diagnostics without a valid primary position are
+never suppressed, because Glint cannot reliably associate them with source
+text.
 
 You shouldn't be using them anyway.
 
@@ -97,6 +90,16 @@ func example() {
 //nolint:nilinterface // third-party interface contract
 func compatible(value any) {
 	_ = consume(value)
+}
+
+func lookup(m map[string]*int, key string) {
+	//nolint:nilness // contain this exceptional flow
+	{
+		value, ok := m[key]
+		if ok {
+			consume(value)
+		}
+	}
 }
 ```
 
